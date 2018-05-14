@@ -18,14 +18,10 @@ object properties relative to one another.
 
 The main data structure used is based on a vector like that
 
-[ Identifier, Name, [Children..] ]
+[ Identifier, IsComposite, Name, [ParamName, ParamValue], ... ]
 
-with a leaf element 
-
-[ kValue, Name, value ].
-
-Elements in this data structure are created and queried by a set of 
-library functions.
+Elements using this data structure are created and queried by a set of 
+library functions. Objects are arrays containing the above data structures.
 
 */
 
@@ -79,13 +75,13 @@ kRender        = kOther + 4;
 
 
 // named positions
-kID       = 0;
-kName     = 1;
-kChildren = 2;
-kVal      = 2; // Value and children share index 2
+kID         = 0;
+kComp       = 1;
+kName       = 2;
+kParamStart = 3;
 
-// function to create a leaf element
-function dVal(name,value) = [kValue,name,value];
+// function to create a param element
+function dVal(name,value) = [name,value];
 
 // functions to create some typical named values in order to prevent
 // misspelling
@@ -103,31 +99,34 @@ function dDiameter(value) = dVal("diameter",value);
 function dPoints(value) = dVal("points",value);
 function dCol(value)    = dVal("color",value);
 
-function dSubs(value) = dVal("subs",value);
-
 // functions to create objects with pre-defined sets of values
 
 // 2D
-function dCircle(r,d,name="",name="") = [kCircle, name, [
+function dCircle(r,d,name="") = [kCircle, false,
+    name, 
 	dRadius  ( (r == undef) ? d/2 : r ),
 	dDiameter( (d == undef) ? r*2 : d )
-]];
+];
 
-function dSquare(size,name="") = [kSquare, name, [
+function dSquare(size,name="") = [kSquare, false,
+    name, 
 	dWidth(size),
 	dHeight(size)
-]];
+];
 
-function dRect(w, h,name="") = [kRectangle, name, [
+function dRect(w, h,name="") = [kRectangle, false,
+    name, 
 	dWidth(w),
 	dHeight(h)
-]];
+];
 
-function dPoly(points,name="") = [kPolygon, name, [
+function dPoly(points,name="") = [kPolygon, false,
+    name, 
 	dPoints(points)
-]];
+];
 
-function dText(text,size,font,halign,valign,spacing,direction,language,script,name="") = [kText, name, [
+function dText(text,size,font,halign,valign,spacing,direction,language,script,name="") = [kText, false,
+    name, 
 	dVal("text",text),
 	dVal("size",size),
 	dVal("font",font),
@@ -137,147 +136,151 @@ function dText(text,size,font,halign,valign,spacing,direction,language,script,na
 	dVal("direction",direction),
 	dVal("language",language),
 	dVal("script",script)
-]];
+];
 
 // 3D
-function dSphere(r,d,name="") = [kSphere, name, [
+function dSphere(r,d,name="") = [kSphere, false,
+    name, 
 	dRadius  ( (r == undef) ? d/2 : r ),
 	dDiameter( (d == undef) ? r*2 : d )	
-]];
+];
 
-function dCube(size,name="") = [kCube, name, [
+function dCube(size,name="") = [kCube, false,
+    name, 
 	dWidth(size),
 	dHeight(size),
 	dDepth(size)
-]];
+];
 
-function dBox(w, h, d,name="") = [kBox, name, [
+function dBox(w, h, d,name="") = [kBox, false,
+    name, 
 	dWidth(w),
 	dHeight(h),
 	dDepth(d)
-]];
+];
 
-function dCylinder(h, r, d,name="") = [kCylinder, name, [
+function dCylinder(h, r, d,name="") = [kCylinder, false,
+    name, 
 	dHeight(h),
 	dRadius  ( (r == undef) ? d/2 : r ),
 	dDiameter( (d == undef) ? r*2 : d )		
-]];
+];
 
-function dCone(h, r1, d1, r2, d2,name="") = [kCone, name, [
+function dCone(h, r1, d1, r2, d2,name="") = [kCone, false,
+    name, 
 	dHeight(h),
 	dVal("radius_1",   (r1 == undef) ? d1/2 : r1 ),
 	dVal("diameter_1", (d1 == undef) ? r1*2 : d1 ),
 	dVal("radius_2",   (r2 == undef) ? d2/2 : r2 ),
 	dVal("diameter_2", (d2 == undef) ? r2*2 : d2 )		
-]];
+];
 
-function dPolyhedron(points, triangles, convexity,name="") = [kPolyhedron, name, [
+function dPolyhedron(points, triangles, convexity,name="") = [kPolyhedron, false,
+    name, 
 	dPoints(points),
 	dVal("triangles",triangles),
 	dVal("convexity",convexity)
-]];
+];
 
 // transformations
-function dTranslate(vec,obj,name="",s=[]) = [kTranslate, name, concat((obj==undef) ? s : [obj],[
-	dSubs((obj==undef) ? s : [obj]),
+function dTranslate(vec,name="") = [kTranslate, true,
+    name, 
 	dVec(vec)
-])];
+];
 
-function dRotate(vec,obj,name="",s=[]) = [kRotate, name, concat((obj==undef) ? s : [obj],[
-	dSubs((obj==undef) ? s : [obj]),
+function dRotate(vec,name="") = [kRotate, true,
+    name, 
 	dVec(vec)
-])];
+];
 
-function dScale(vec,obj,name="",s=[]) = [kScale, name, concat((obj==undef) ? s : [obj],[
-	dSubs((obj==undef) ? s : [obj]),
+function dScale(vec,name="") = [kScale, true,
+    name, 
 	dVec(vec)
-])];
+];
 
-function dResize(vec,obj, auto,name="",s=[]) = [kResize, name, concat((obj==undef) ? s : [obj],[
-	dSubs((obj==undef) ? s : [obj]),
+function dResize(vec,auto,name="") = [kResize, true,
+    name, 
 	dVec(vec),
 	dVal("auto",auto)
-])];
+];
 
-function dMirror(vec,obj,name="",s=[]) = [kMirror, name, concat((obj==undef) ? s : [obj],[
-	dSubs((obj==undef) ? s : [obj]),
+function dMirror(vec,name="") = [kMirror, true,
+    name, 
 	dVec(vec)
-])];
+];
 
-function dMultMatrix(mat,obj,name="",s=[]) = [kMultMatrix, name, concat((obj==undef) ? s : [obj],[
-	dSubs((obj==undef) ? s : [obj]),
+function dMultMatrix(mat,name="") = [kMultMatrix, true,
+    name, 
 	dMat(mat)
-])];
+];
 
-function dColor(col,obj,name="",s=[]) = [kColor, name, concat((obj==undef) ? s : [obj],[
-	dSubs((obj==undef) ? s : [obj]),
+function dColor(col,name="") = [kColor, true,
+    name, 
 	dCol(col)
-])];
+];
 
-function dOffset(r, delta, chamfer,obj,name="",s=[]) = [kOffset, name, concat((obj==undef) ? s : [obj],[
-	dSubs((obj==undef) ? s : [obj]),
+function dOffset(r, delta, chamfer,name="") = [kOffset, true, 
+    name, 
 	dRadius(r),
 	dVal("delta",delta),
 	dVal("chamfer",chamfer)
-])];
+];
 
-function dHull(name="",s=[]) = [kHull, name, concat(s,[
-	dSubs(s)
-])];
+function dHull(name="") = [kHull, true,
+    name
+];
 
-function dMinkowski(obj_a, obj_b, name="",sa=[],sb=[]) = [kMinkowski, name, concat((obj_a==undef) ? sa : [obj_a],(obj_b==undef) ? sb : [obj_b],[
-	dVal("subs_a",(obj_a==undef) ? sa : [obj_a]),
-	dVal("subs_b",(obj_b==undef) ? sb : [obj_b])
-])];
+function dMinkowski(name="") = [kMinkowski, true,
+    name
+];
 
 // boolean operations
-function dUnion(name="",s=[]) = [kUnion, name, concat(s,[
-	dSubs(s)
-])];
+function dUnion(name="") = [kUnion, true,
+    name
+];
 
-function dDifference(obj_a, obj_b, name="",sa=[],sb=[]) = [kDifference, name, concat((obj_a==undef) ? sa : [obj_a],(obj_b==undef) ? sb : [obj_b],[
-	dVal("subs_a",(obj_a==undef) ? sa : [obj_a]),
-	dVal("subs_b",(obj_b==undef) ? sb : [obj_b])
-])];
+function dDifference(name="") = [kDifference, true,
+    name
+];
 
-function dIntersection(obj_a, obj_b, name="",sa=[],sb=[]) = [kIntersection, name, concat((obj_a==undef) ? sa : [obj_a],(obj_b==undef) ? sb : [obj_b],[
-	dVal("subs_a",(obj_a==undef) ? sa : [obj_a]),
-	dVal("subs_b",(obj_b==undef) ? sb : [obj_b])
-])];
+function dIntersection(name="") = [kIntersection, true,
+    name
+];
 
 // other
-function dLinearExtrude(h, center, convexity, twist, slices, scale,obj,name="",s=[]) = [kLinearExtrude, name, concat((obj==undef) ? s : [obj],[
-	dSubs((obj==undef) ? s : [obj]),
+function dLinearExtrude(h, center, convexity, twist, slices, scale,name="") = [kLinearExtrude, true,
+    name, 
 	dHeight(h),
 	dVal("center",center),
 	dVal("convexity",convexity),
 	dVal("twist",twist),
 	dVal("slices",slices),
 	dVal("scale",scale)
-])];
+];
 
-function dRotateExtrude(angle, convexity,obj,name="",s=[]) = [kRotateExtrude, name, concat((obj==undef) ? s : [obj],[
-	dSubs((obj==undef) ? s : [obj]),
+function dRotateExtrude(angle, convexity,name="") = [kRotateExtrude, true,
+    name, 
 	dVal("angle",angle),
 	dVal("convexity",convexity)
-])];
+];
 
-function dSurface(file, center, invert, convexity,name="") = [kSurface, name, [
+function dSurface(file, center, invert, convexity,name="") = [kSurface, false,
+    name, 
 	dVal("file",file),
 	dVal("center",center),
 	dVal("invert",invert),
 	dVal("convexity",convexity)
-]];
+];
 
-function dProjection(cut,obj,name="",s=[]) = [kProjection, name, concat((obj==undef) ? s : [obj],[
-	dSubs((obj==undef) ? s : [obj]),
+function dProjection(cut,name="") = [kProjection, true,
+    name, 
 	dVal("cut",cut)
-])];
+];
 
-function dRender(obj,convexity,name="",s=[]) = [kRender, name, concat((obj==undef) ? s : [obj],[
-	dSubs((obj==undef) ? s : [obj]),
+function dRender(convexity,name="") = [kRender, true,
+    name,
 	dVal("convexity",convexity)
-])];
+];
 
 
 // some internal helper functions
@@ -285,20 +288,71 @@ function dcl_remove_first(array) = (len(array) == 1) ? [] : [for (i = [1:len(arr
 
 function dcl_array_to_str(first,rest) = (len(rest) == 1) ? str(first,rest[0]) : str(first,dcl_array_to_str(rest[0],dcl_remove_first(rest)));
 
-function dcl_split_str(string,delimiter) = 
-	(search(delimiter,string) == []) ? 
+function dcl_split_str(string,delimiter) =
+    let (s = search(delimiter,string)) 
+	(s == []) ? 
 		[string,""] :
-        [let (a = [for (i = [0:search(delimiter,string)[0]-1]) string[i]]) dcl_array_to_str(a[0],dcl_remove_first(a)),
-         let (a = [for (i = [search(delimiter,string)[0]+1:len(string)-1]) string[i]]) dcl_array_to_str(a[0],dcl_remove_first(a))];
+        [let (a = [for (i = [0:s[0]-1]) string[i]]) dcl_array_to_str(a[0],dcl_remove_first(a)),
+         let (a = [for (i = [s[0]+1:len(string)-1]) string[i]]) dcl_array_to_str(a[0],dcl_remove_first(a))];
+
+function dcl_split_str_last(string,delimiter) =
+    let (s = search(delimiter,string,0)) 
+	(s == [[]]) ? 
+		[string,""] :
+        [let (a = [for (i = [0:s[0][len(s[0])-1]-1]) string[i]]) dcl_array_to_str(a[0],dcl_remove_first(a)),
+         let (a = [for (i = [s[0][len(s[0])-1]+1:len(string)-1]) string[i]]) dcl_array_to_str(a[0],dcl_remove_first(a))];
+
+function dcl_check_pos(dcl_geom,idx) = 
+    (idx == 0) ? (
+        true
+    ) : (
+        (dcl_geom[idx-1][kComp]) ? (
+            false
+        ) : (
+            true
+        )
+    );
 
 // a function to get sub-geometry based on the geometries name, e.g. "base.subelement.subsubelement"
 function gSub(dcl_geom,name) = 
-	let (a = dcl_split_str(name,".")) (a[1] == "") ?
-		[for (i = [0:len(dcl_geom[kChildren])-1]) if (dcl_geom[kChildren][i][kName] == name) dcl_geom[kChildren][i]][0] :
-		gSub([for (i = [0:len(dcl_geom[kChildren])-1]) if (dcl_geom[kChildren][i][kName] == a[0]) dcl_geom[kChildren][i]][0],a[1]);
-
+    (dcl_geom[0][0] == undef) ? ( // if dcl_geom is not an array
+        undef
+    ) : (
+        let (a = dcl_split_str(name,"."))
+        (a[1] == "") ? ( // if there are no more subelements
+            [for (i = [0:len(dcl_geom)-1]) let (
+                    pos_ok       = dcl_check_pos(dcl_geom,i),
+                    pos_no_array = (dcl_geom[i][0][0] == undef),
+                    rec_search   = gSub(dcl_geom[i],a[0])
+                )
+                if ((pos_ok && pos_no_array && dcl_geom[i][kName] == a[0]) ||
+                    (pos_ok && (rec_search != undef))) pos_no_array ?
+                    dcl_geom[i] : rec_search
+            ][0]        
+        ) : (
+            gSub(  
+                [for (i = [0:len(dcl_geom)-1]) let (
+                        pos_ok       = dcl_check_pos(dcl_geom,i),
+                        pos_no_array = (dcl_geom[i][0][0] == undef),
+                        rec_search   = gSub(dcl_geom[i],a[0])
+                    )
+                    if ((pos_ok && pos_no_array && dcl_geom[i][kName] == a[0]) ||
+                        (pos_ok && (rec_search != undef))) pos_no_array ?
+                        dcl_geom[i+1] : rec_search
+                ][0],
+                a[1]
+            )
+        ) 
+    );
+                                   
 // a function to retrieve some named value from a geometry
-function gVal(dcl_geom,name) = let (a = gSub(dcl_geom,name)) (a[kID] == kValue) ? a[kVal] : undef;
+function gVal(dcl_geom,name) = 
+    (dcl_geom[0][0] == undef) ? (
+        [for (i = [kParamStart:len(dcl_geom)-1]) if (dcl_geom[i][0] == name) dcl_geom[i][1]][0]
+    ) : (
+        let (b = dcl_split_str_last(name,"."), a = gSub(dcl_geom,b[0])) 
+        [for (i = [kParamStart:len(a)-1]) if (a[i][0] == b[1]) a[i][1]][0]
+    );
 
 // some convenience functions
 function gPos(dcl_geom) = gVal(dcl_geom,"pos");
@@ -321,191 +375,162 @@ function dCopy(dcl_geom,name) = [dcl_geom[kID], name, dcl_geom[kChildren]];
 
 // the function that converts the dcl tree to actual geometry
 module dcl_make(dcl_geom) {
-	if (dcl_geom[kID] == kCircle) {
-		circle(radius = gRadius(dcl_geom));
-	} else
-	if (dcl_geom[kID] == kSquare) {
-		square([gWidth(dcl_geom),gHeight(dcl_geom)]);
-	} else
-	if (dcl_geom[kID] == kRectangle) {
-		square([gWidth(dcl_geom),gHeight(dcl_geom)]);
-	} else
-	if (dcl_geom[kID] == kPolygon) {
-		polygon(gPoints(dcl_geom));
-	} else
-	if (dcl_geom[kID] == kText) {
-		text(gVal(dcl_geom,"text"),
-			 gVal(dcl_geom,"size"),
-			 gVal(dcl_geom,"font"),
-			 gVal(dcl_geom,"halign"),
-			 gVal(dcl_geom,"valign"),
-			 gVal(dcl_geom,"spacing"),
-			 gVal(dcl_geom,"direction"),
-			 gVal(dcl_geom,"language"),
-			 gVal(dcl_geom,"script"));
-	} else
-	if (dcl_geom[kID] == kSphere) {
-		sphere(radius = gRadius(dcl_geom));
-	} else
-	if (dcl_geom[kID] == kCube) {
-		cube([gWidth(dcl_geom),gDepth(dcl_geom),gHeight(dcl_geom)]);
-	} else
-	if (dcl_geom[kID] == kBox) {
-		cube([gWidth(dcl_geom),gDepth(dcl_geom),gHeight(dcl_geom)]);
-	} else
-	if (dcl_geom[kID] == kCylinder) {
-		cylinder(gHeight(dcl_geom),
-			     r = gRadius(dcl_geom));
-	} else
-	if (dcl_geom[kID] == kCone) {
-		cylinder(gHeight(dcl_geom),
-			     r1 = gVal(dcl_geom,"radius_1"), 
-			     r2 = gVal(dcl_geom,"radius_2"));
-	} else
-	if (dcl_geom[kID] == kPolyhedron) {
-		polyhedron(gVal(dcl_geom,"points"),
-			       gVal(dcl_geom,"triangles"),
-			       gVal(dcl_geom,"convexity"));
-	} else
-	if (dcl_geom[kID] == kTranslate) {
-		sb = gVal(dcl_geom,"subs");
-		translate(gVec(dcl_geom)) {
-			for (i = [0:len(sb)-1])
-				dcl_make(sb[i]);
-		}
-	} else
-	if (dcl_geom[kID] == kRotate) {
-		sb = gVal(dcl_geom,"subs");
-		rotate(gVec(dcl_geom)) {
-			for (i = [0:len(sb)-1])
-				dcl_make(sb[i]);
-		}
-	} else
-	if (dcl_geom[kID] == kScale) {
-		sb = gVal(dcl_geom,"subs");
-		scale(gVec(dcl_geom)) {
-			for (i = [0:len(sb)-1])
-				dcl_make(sb[i]);
-		}
-	} else
-	if (dcl_geom[kID] == kResize) {
-		sb = gVal(dcl_geom,"subs");
-		resize(gVec(dcl_geom),gVal(dcl_geom,"auto")) {
-			for (i = [0:len(sb)-1])
-				dcl_make(sb[i]);
-		}
-	} else
-	if (dcl_geom[kID] == kMirror) {
-		sb = gVal(dcl_geom,"subs");
-		mirror(gVec(dcl_geom)) {
-			for (i = [0:len(sb)-1])
-				dcl_make(sb[i]);
-		}
-	} else
-	if (dcl_geom[kID] == kMultMatrix) {
-		sb = gVal(dcl_geom,"subs");
-		multmatrix(gMat(dcl_geom)) {
-			for (i = [0:len(sb)-1])
-				dcl_make(sb[i]);
-		}
-	} else
-	if (dcl_geom[kID] == kColor) {
-		sb = gVal(dcl_geom,"subs");
-		mirror(gCol(dcl_geom)) {
-			for (i = [0:len(sb)-1])
-				dcl_make(sb[i]);
-		}		
-	} else
-	if (dcl_geom[kID] == kOffset) {
-		sb = gVal(dcl_geom,"subs");
-		offset(gRadius(dcl_geom),gVal(dcl_geom,"delta"),gVal(dcl_geom,"chamfer")) {
-			for (i = [0:len(sb)-1])
-				dcl_make(sb[i]);
-		}
-	} else
-	if (dcl_geom[kID] == kHull) {
-		sb = gVal(dcl_geom,"subs");
-		hull() {
-			for (i = [0:len(sb)-1])
-				dcl_make(sb[i]);
-		}		
-	} else
-	if (dcl_geom[kID] == kMinkowski) {
-		sba = gVal(dcl_geom,"subs_a");
-		sbb = gVal(dcl_geom,"subs_b");
-		minkowski() {
-			for (i = [0:len(sba)-1])
-				dcl_make(sba[i]);
-			for (i = [0:len(sbb)-1])
-				dcl_make(sbb[i]);			
-		}
-	} else
-	if (dcl_geom[kID] == kUnion) {
-		sb = gVal(dcl_geom,"subs");
-		union() {
-			for (i = [0:len(sb)-1])
-				dcl_make(sb[i]);
-		}		
-	} else
-	if (dcl_geom[kID] == kDifference) {
-		sba = gVal(dcl_geom,"subs_a");
-		sbb = gVal(dcl_geom,"subs_b");
-		difference() {
-			for (i = [0:len(sba)-1])
-				dcl_make(sba[i]);
-			for (i = [0:len(sbb)-1])
-				dcl_make(sbb[i]);			
-		}
-	} else
-	if (dcl_geom[kID] == kIntersection) {
-		sba = gVal(dcl_geom,"subs_a");
-		sbb = gVal(dcl_geom,"subs_b");
-		intersection() {
-			for (i = [0:len(sba)-1])
-				dcl_make(sba[i]);
-			for (i = [0:len(sbb)-1])
-				dcl_make(sbb[i]);			
-		}
-	} else
-	if (dcl_geom[kID] == kLinearExtrude) {
-		sb = gVal(dcl_geom,"subs");
-		linear_extrude(gHeight(dcl_geom),
-			           gVal(dcl_geom,"center"),
-			           gVal(dcl_geom,"convexity"),
-			           gVal(dcl_geom,"twist"),
-			           gVal(dcl_geom,"slices"),
-			           gVal(dcl_geom,"scale")) {
-			for (i = [0:len(sb)-1])
-				dcl_make(sb[i]);			
-		}
-	} else
-	if (dcl_geom[kID] == kRotateExtrude) {
-		sb = gVal(dcl_geom,"subs");
-		rotate_extrude(gVal(dcl_geom,"angle"),
-			           gVal(dcl_geom,"convexity")) {
-			for (i = [0:len(sb)-1])
-				dcl_make(sb[i]);			
-		}
-	} else
-	if (dcl_geom[kID] == kSurface) {
-		surface(gVal(dcl_geom,"file"),
-			    gVal(dcl_geom,"center"),
-			    gVal(dcl_geom,"invert"),
-			    gVal(dcl_geom,"convexity"));
-	} else
-	if (dcl_geom[kID] == kProjection) {
-		sb = gVal(dcl_geom,"subs");
-		projection(gVal(dcl_geom,"cut")){
-			for (i = [0:len(sb)-1])
-				dcl_make(sb[i]);						
-		}
-	} else
-	if (dcl_geom[kID] == kRender) {
-		sb = gVal(dcl_geom,"subs");
-		render(gVal(dcl_geom,"convexity")){
-			for (i = [0:len(sb)-1])
-				dcl_make(sb[i]);						
-		}
-	}
+    // check if input is not an array of geometries, if so make it one
+    if (dcl_geom[0][0] == undef) 
+        dcl_make([dcl_geom]);
+    else for (i = [0:len(dcl_geom)-1]) if (dcl_check_pos(dcl_geom,i)) {
+    
+        if (dcl_geom[i][0][0] != undef) {
+            dcl_make(dcl_geom[i]);
+        } else
+	    if (dcl_geom[i][kID] == kCircle) {
+		    circle(radius = gRadius(dcl_geom[i]));
+	    } else
+	    if (dcl_geom[i][kID] == kSquare) {
+		    square([gWidth(dcl_geom[i]),gHeight(dcl_geom[i])]);
+	    } else
+	    if (dcl_geom[i][kID] == kRectangle) {
+		    square([gWidth(dcl_geom[i]),gHeight(dcl_geom[i])]);
+	    } else
+	    if (dcl_geom[i][kID] == kPolygon) {
+		    polygon(gPoints(dcl_geom[i]));
+	    } else
+	    if (dcl_geom[i][kID] == kText) {
+		    text(gVal(dcl_geom[i],"text"),
+			     gVal(dcl_geom[i],"size"),
+			     gVal(dcl_geom[i],"font"),
+			     gVal(dcl_geom[i],"halign"),
+			     gVal(dcl_geom[i],"valign"),
+			     gVal(dcl_geom[i],"spacing"),
+			     gVal(dcl_geom[i],"direction"),
+			     gVal(dcl_geom[i],"language"),
+			     gVal(dcl_geom[i],"script"));
+	    } else
+	    if (dcl_geom[i][kID] == kSphere) {
+		    sphere(r = gRadius(dcl_geom[i]));
+	    } else
+	    if (dcl_geom[i][kID] == kCube) {
+		    cube([gWidth(dcl_geom[i]),gDepth(dcl_geom[i]),gHeight(dcl_geom[i])]);
+	    } else
+	    if (dcl_geom[i][kID] == kBox) {
+		    cube([gWidth(dcl_geom[i]),gDepth(dcl_geom[i]),gHeight(dcl_geom[i])]);
+	    } else
+	    if (dcl_geom[i][kID] == kCylinder) {
+		    cylinder(gHeight(dcl_geom[i]),
+			         r = gRadius(dcl_geom[i]));
+	    } else
+	    if (dcl_geom[i][kID] == kCone) {
+		    cylinder(gHeight(dcl_geom[i]),
+			         r1 = gVal(dcl_geom[i],"radius_1"), 
+			         r2 = gVal(dcl_geom[i],"radius_2"));
+	    } else
+	    if (dcl_geom[i][kID] == kPolyhedron) {
+		    polyhedron(gVal(dcl_geom[i],"points"),
+			           gVal(dcl_geom[i],"triangles"),
+			           gVal(dcl_geom[i],"convexity"));
+	    } else
+	    if (dcl_geom[i][kID] == kTranslate) {
+		    translate(gVec(dcl_geom[i])) {
+			    dcl_make(dcl_geom[i+1]);
+		    }
+	    } else
+	    if (dcl_geom[i][kID] == kRotate) {
+		    rotate(gVec(dcl_geom[i])) {
+			    dcl_make(dcl_geom[i+1]);
+		    }
+	    } else
+	    if (dcl_geom[i][kID] == kScale) {
+		    scale(gVec(dcl_geom[i])) {
+			    dcl_make(dcl_geom[i+1]);
+		    }
+	    } else
+	    if (dcl_geom[i][kID] == kResize) {
+		    resize(gVec(dcl_geom[i]),gVal(dcl_geom[i],"auto")) {
+			    dcl_make(dcl_geom[i+1]);
+		    }
+	    } else
+	    if (dcl_geom[i][kID] == kMirror) {
+		    mirror(gVec(dcl_geom[i])) {
+			    dcl_make(dcl_geom[i+1]);
+		    }
+	    } else
+	    if (dcl_geom[i][kID] == kMultMatrix) {
+		    multmatrix(gMat(dcl_geom[i])) {
+			    dcl_make(dcl_geom[i+1]);
+		    }
+	    } else
+	    if (dcl_geom[i][kID] == kColor) {
+		    mirror(gCol(dcl_geom[i])) {
+			    dcl_make(dcl_geom[i+1]);
+		    }		
+	    } else
+	    if (dcl_geom[i][kID] == kOffset) {
+		    offset(gRadius(dcl_geom[i]),gVal(dcl_geom[i],"delta"),gVal(dcl_geom[i],"chamfer")) {
+			    dcl_make(dcl_geom[i+1]);
+		    }
+	    } else
+	    if (dcl_geom[i][kID] == kHull) {
+		    hull() {
+			    dcl_make(dcl_geom[i+1]);
+		    }		
+	    } else
+	    if (dcl_geom[i][kID] == kMinkowski) {
+		    minkowski() {
+			    dcl_make(dcl_geom[i+1][0]);
+			    dcl_make(dcl_geom[i+1][1]);
+		    }
+	    } else
+	    if (dcl_geom[i][kID] == kUnion) {
+		    union() {
+			    dcl_make(dcl_geom[i+1]);
+		    }		
+	    } else
+	    if (dcl_geom[i][kID] == kDifference) {
+		    difference() {
+			    dcl_make(dcl_geom[i+1][0]);
+			    for (j = [1:len(dcl_geom[i+1])-1])
+				    dcl_make(dcl_geom[i+1][j]);			
+		    }
+	    } else
+	    if (dcl_geom[i][kID] == kIntersection) {
+		    intersection() {
+			    dcl_make(dcl_geom[i+1][0]);
+			    for (j = [1:len(dcl_geom[i+1])-1])
+				    dcl_make(dcl_geom[i+1][j]);			
+		    }
+	    } else
+	    if (dcl_geom[i][kID] == kLinearExtrude) {
+		    linear_extrude(gHeight(dcl_geom[i]),
+			               gVal(dcl_geom[i],"center"),
+			               gVal(dcl_geom[i],"convexity"),
+			               gVal(dcl_geom[i],"twist"),
+			               gVal(dcl_geom[i],"slices"),
+			               gVal(dcl_geom[i],"scale")) {
+			    dcl_make(dcl_geom[i+1]);			
+		    }
+	    } else
+	    if (dcl_geom[i][kID] == kRotateExtrude) {
+		    rotate_extrude(gVal(dcl_geom[i],"angle"),
+			               gVal(dcl_geom[i],"convexity")) {
+			    dcl_make(dcl_geom[i+1]);			
+		    }
+	    } else
+	    if (dcl_geom[i][kID] == kSurface) {
+		    surface(gVal(dcl_geom[i],"file"),
+			        gVal(dcl_geom[i],"center"),
+			        gVal(dcl_geom[i],"invert"),
+			        gVal(dcl_geom[i],"convexity"));
+	    } else
+	    if (dcl_geom[i][kID] == kProjection) {
+		    projection(gVal(dcl_geom[i],"cut")){
+			    dcl_make(dcl_geom[i+1]);						
+		    }
+	    } else
+	    if (dcl_geom[i][kID] == kRender) {
+		    render(gVal(dcl_geom[i],"convexity")){
+			    dcl_make(dcl_geom[i+1]);						
+		    }
+	    }
+    }
 }
 

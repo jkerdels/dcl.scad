@@ -2,16 +2,21 @@
 include <dcl.scad>
 
 // make an unnamed object
-wheel = dDifference(
-            dRotate([0,90,0],
-                dCylinder(h=10,r=20)),
-            dTranslate([5,0,0],
-                dRotate([0,90,0],
-                    dCylinder(h=10,r=16)
-                )
-            )
-        );
+wheel = [
+  dDifference(),[
+    [
+      dRotate([0,90,0]),
+      dCylinder(h=10,r=20)
+    ],
+    [
+      dTranslate([5,0,0]),
+      dRotate([0,90,0]),
+      dCylinder(h=10,r=16)
+    ]
+  ]
+];
 
+/*
 // make a named union using local variable via "let"
 body = let( bodywidth = 100, bodylength = 200, bodyheight = 50,
             centerwidth = 140, centerlength = 80, centerheight = 50)
@@ -64,7 +69,8 @@ car = dUnion("car", [
               dRotate([0,0,180],dCopy(wheel,"back_right"))
           )
       ]);
+*/
 
-dcl_make(car);
+dcl_make(wheel);
 
 
