@@ -71,7 +71,7 @@ kRotateExtrude = kOther + 1;
 kSurface       = kOther + 2;
 kProjection    = kOther + 3;
 kRender        = kOther + 4;
-
+kNamedValue    = kOther + 5;
 
 
 // named positions
@@ -282,6 +282,10 @@ function dRender(convexity,name="") = [kRender, true,
 	dVal("convexity",convexity)
 ];
 
+function dValue(name,value) = [kNamedValue, false,
+	name,
+	dVal("val",value)
+];
 
 // some internal helper functions
 function dcl_remove_first(array) = (len(array) == 1) ? [] : [for (i = [1:len(array)-1]) array[i]];
@@ -383,7 +387,7 @@ module dcl_make(dcl_geom, i=0, stop=false) {
 	        dcl_make(dcl_geom[i],0);
 	    } else
 	    if (dcl_geom[i][kID] == kCircle) {
-		    circle(radius = gRadius(dcl_geom[i]));
+		    circle(r = gRadius(dcl_geom[i]));
 	    } else
 	    if (dcl_geom[i][kID] == kSquare) {
 		    square([gWidth(dcl_geom[i]),gHeight(dcl_geom[i])]);
