@@ -302,47 +302,43 @@ function dcl_split_str_last(string,delimiter) =
         [let (a = [for (i = [0:s[0][len(s[0])-1]-1]) string[i]]) dcl_array_to_str(a[0],dcl_remove_first(a)),
          let (a = [for (i = [s[0][len(s[0])-1]+1:len(string)-1]) string[i]]) dcl_array_to_str(a[0],dcl_remove_first(a))];
 
-function dcl_check_pos(dcl_geom,idx) = 
-    (idx == 0) ? (
-        true
-    ) : (
-        (dcl_geom[idx-1][kComp]) ? (
-            false
-        ) : (
-            true
-        )
-    );
 
-// a function to get sub-geometry based on the geometries name, e.g. "base.subelement.subsubelement"
-function gSub(dcl_geom,name) = 
-    (dcl_geom[0][0] == undef) ? ( // if dcl_geom is not an array
+
+function dcl_find_name(dcl_geom,name,start_idx = 0) =
+	((dcl_geom[0][0] == undef) || (start_idx >= len(dcl_geom))) ? ( // if dcl_geom is not an array of geometries
         undef
     ) : (
-        let (a = dcl_split_str(name,"."))
-        (a[1] == "") ? ( // if there are no more subelements
-            [for (i = [0:len(dcl_geom)-1]) let (
-                    pos_ok       = dcl_check_pos(dcl_geom,i),
-                    pos_no_array = (dcl_geom[i][0][0] == undef),
-                    rec_search   = gSub(dcl_geom[i],a[0])
-                )
-                if ((pos_ok && pos_no_array && dcl_geom[i][kName] == a[0]) ||
-                    (pos_ok && (rec_search != undef))) pos_no_array ?
-                    dcl_geom[i] : rec_search
-            ][0]        
+    	let (
+    		result = [for (i = [start_idx:len(dcl_geom)-1]) if (dcl_geom[i][0][0] == undef) if (dcl_geom[i][kName] == name) i]
+    	)
+    	(len(result) > 0) ? result[0] : undef
+    );
+	
+
+
+// a function to get sub-geometry based on the geometries name, e.g. "base.subelement.subsubelement"
+function gSub(dcl_geom,name,start_idx=0) = 
+    ((dcl_geom[0][0] == undef) || (start_idx >= len(dcl_geom))) ? ( // if dcl_geom is not an array of geometries
+        undef
+    ) : (
+        let (
+        	a = dcl_split_str(name,"."),
+        	idx = dcl_find_name(dcl_geom,a[0],start_idx)
+        )
+        (idx == undef) ? (
+        	undef
         ) : (
-            gSub(  
-                [for (i = [0:len(dcl_geom)-1]) let (
-                        pos_ok       = dcl_check_pos(dcl_geom,i),
-                        pos_no_array = (dcl_geom[i][0][0] == undef),
-                        rec_search   = gSub(dcl_geom[i],a[0])
-                    )
-                    if ((pos_ok && pos_no_array && dcl_geom[i][kName] == a[0]) ||
-                        (pos_ok && (rec_search != undef))) pos_no_array ?
-                        dcl_geom[i+1] : rec_search
-                ][0],
-                a[1]
-            )
-        ) 
+	        (a[1] == "") ? ( // if there are no more subelements
+	        	dcl_geom[idx]
+	        ) : (
+	        	(idx+1 >= len(dcl_geom)) ? undef :	        	
+	        	(dcl_geom[idx+1][0][0] == undef) ? (
+	        		gSub(dcl_geom,a[1],idx+1)
+	        	) : (
+					gSub(dcl_geom[idx+1],a[1])
+	        	)
+	        ) 
+        )
     );
                                    
 // a function to retrieve some named value from a geometry
@@ -353,6 +349,7 @@ function gVal(dcl_geom,name) =
         let (b = dcl_split_str_last(name,"."), a = gSub(dcl_geom,b[0])) 
         [for (i = [kParamStart:len(a)-1]) if (a[i][0] == b[1]) a[i][1]][0]
     );
+
 
 // some convenience functions
 function gPos(dcl_geom) = gVal(dcl_geom,"pos");
@@ -369,20 +366,22 @@ function gDiameter(dcl_geom) = gVal(dcl_geom,"diameter");
 function gPoints(dcl_geom) = gVal(dcl_geom,"points");
 function gCol(dcl_geom)    = gVal(dcl_geom,"color");
 
-// function to copy a geomentry, but give it a new name
-function dCopy(dcl_geom,name) = [dcl_geom[kID], name, dcl_geom[kChildren]];
-
+function dcl_get_comp_depth(dcl_geom, i) = 
+	((dcl_geom[i][0][0] != undef) || (dcl_geom[i][kComp] == false)) ? 
+		1 : 
+		1 + dcl_get_comp_depth(dcl_geom, i+1);
 
 // the function that converts the dcl tree to actual geometry
-module dcl_make(dcl_geom) {
-    // check if input is not an array of geometries, if so make it one
-    if (dcl_geom[0][0] == undef) 
-        dcl_make([dcl_geom]);
-    else for (i = [0:len(dcl_geom)-1]) if (dcl_check_pos(dcl_geom,i)) {
-    
-        if (dcl_geom[i][0][0] != undef) {
-            dcl_make(dcl_geom[i]);
-        } else
+module dcl_make(dcl_geom, i=0, stop=false) {	
+	// check if element is not an array of geometries, then make it one
+	if (i < len(dcl_geom))
+    if (dcl_geom[0][0] == undef) {
+        dcl_make([dcl_geom],0);
+    } else {
+	    // check if input is an array of geometries
+	    if (dcl_geom[i][0][0] != undef) {
+	        dcl_make(dcl_geom[i],0);
+	    } else
 	    if (dcl_geom[i][kID] == kCircle) {
 		    circle(radius = gRadius(dcl_geom[i]));
 	    } else
@@ -431,72 +430,70 @@ module dcl_make(dcl_geom) {
 	    } else
 	    if (dcl_geom[i][kID] == kTranslate) {
 		    translate(gVec(dcl_geom[i])) {
-			    dcl_make(dcl_geom[i+1]);
+			    dcl_make(dcl_geom,i+1,true);
 		    }
 	    } else
 	    if (dcl_geom[i][kID] == kRotate) {
 		    rotate(gVec(dcl_geom[i])) {
-			    dcl_make(dcl_geom[i+1]);
+			    dcl_make(dcl_geom,i+1,true);
 		    }
 	    } else
 	    if (dcl_geom[i][kID] == kScale) {
 		    scale(gVec(dcl_geom[i])) {
-			    dcl_make(dcl_geom[i+1]);
+			    dcl_make(dcl_geom,i+1,true);
 		    }
 	    } else
 	    if (dcl_geom[i][kID] == kResize) {
 		    resize(gVec(dcl_geom[i]),gVal(dcl_geom[i],"auto")) {
-			    dcl_make(dcl_geom[i+1]);
+			    dcl_make(dcl_geom,i+1,true);
 		    }
 	    } else
 	    if (dcl_geom[i][kID] == kMirror) {
 		    mirror(gVec(dcl_geom[i])) {
-			    dcl_make(dcl_geom[i+1]);
+			    dcl_make(dcl_geom,i+1,true);
 		    }
 	    } else
 	    if (dcl_geom[i][kID] == kMultMatrix) {
 		    multmatrix(gMat(dcl_geom[i])) {
-			    dcl_make(dcl_geom[i+1]);
+			    dcl_make(dcl_geom,i+1,true);
 		    }
 	    } else
 	    if (dcl_geom[i][kID] == kColor) {
 		    mirror(gCol(dcl_geom[i])) {
-			    dcl_make(dcl_geom[i+1]);
+			    dcl_make(dcl_geom,i+1,true);
 		    }		
 	    } else
 	    if (dcl_geom[i][kID] == kOffset) {
 		    offset(gRadius(dcl_geom[i]),gVal(dcl_geom[i],"delta"),gVal(dcl_geom[i],"chamfer")) {
-			    dcl_make(dcl_geom[i+1]);
+			    dcl_make(dcl_geom,i+1,true);
 		    }
 	    } else
 	    if (dcl_geom[i][kID] == kHull) {
 		    hull() {
-			    dcl_make(dcl_geom[i+1]);
+			    dcl_make(dcl_geom,i+1,dcl_get_comp_depth(dcl_geom,i+1));
 		    }		
 	    } else
 	    if (dcl_geom[i][kID] == kMinkowski) {
 		    minkowski() {
-			    dcl_make(dcl_geom[i+1][0]);
-			    dcl_make(dcl_geom[i+1][1]);
+			    dcl_make(dcl_geom[i+1],0,true);
+			    dcl_make(dcl_geom[i+1],dcl_get_comp_depth(dcl_geom[i+1],0));
 		    }
 	    } else
 	    if (dcl_geom[i][kID] == kUnion) {
 		    union() {
-			    dcl_make(dcl_geom[i+1]);
+			    dcl_make(dcl_geom,i+1,true);
 		    }		
 	    } else
 	    if (dcl_geom[i][kID] == kDifference) {
 		    difference() {
-			    dcl_make(dcl_geom[i+1][0]);
-			    for (j = [1:len(dcl_geom[i+1])-1])
-				    dcl_make(dcl_geom[i+1][j]);			
+			    dcl_make(dcl_geom[i+1],0,true);
+			    dcl_make(dcl_geom[i+1],dcl_get_comp_depth(dcl_geom[i+1],0));
 		    }
 	    } else
 	    if (dcl_geom[i][kID] == kIntersection) {
 		    intersection() {
-			    dcl_make(dcl_geom[i+1][0]);
-			    for (j = [1:len(dcl_geom[i+1])-1])
-				    dcl_make(dcl_geom[i+1][j]);			
+			    dcl_make(dcl_geom[i+1],0,true);
+			    dcl_make(dcl_geom[i+1],dcl_get_comp_depth(dcl_geom[i+1],0));
 		    }
 	    } else
 	    if (dcl_geom[i][kID] == kLinearExtrude) {
@@ -506,13 +503,13 @@ module dcl_make(dcl_geom) {
 			               gVal(dcl_geom[i],"twist"),
 			               gVal(dcl_geom[i],"slices"),
 			               gVal(dcl_geom[i],"scale")) {
-			    dcl_make(dcl_geom[i+1]);			
+			    dcl_make(dcl_geom,i+1,true);
 		    }
 	    } else
 	    if (dcl_geom[i][kID] == kRotateExtrude) {
 		    rotate_extrude(gVal(dcl_geom[i],"angle"),
 			               gVal(dcl_geom[i],"convexity")) {
-			    dcl_make(dcl_geom[i+1]);			
+			    dcl_make(dcl_geom,i+1,true);
 		    }
 	    } else
 	    if (dcl_geom[i][kID] == kSurface) {
@@ -522,15 +519,22 @@ module dcl_make(dcl_geom) {
 			        gVal(dcl_geom[i],"convexity"));
 	    } else
 	    if (dcl_geom[i][kID] == kProjection) {
-		    projection(gVal(dcl_geom[i],"cut")){
-			    dcl_make(dcl_geom[i+1]);						
+		    projection(gVal(dcl_geom[i],"cut")) {
+			    dcl_make(dcl_geom,i+1,true);
 		    }
 	    } else
 	    if (dcl_geom[i][kID] == kRender) {
-		    render(gVal(dcl_geom[i],"convexity")){
-			    dcl_make(dcl_geom[i+1]);						
+		    render(gVal(dcl_geom[i],"convexity")) {
+			    dcl_make(dcl_geom,i+1,true);
 		    }
 	    }
-    }
+	    if (stop == false) {
+	    	if ((dcl_geom[i][0][0] == undef) && (dcl_geom[i][kComp])) {
+	    		dcl_make(dcl_geom,i+1+dcl_get_comp_depth(dcl_geom,i+1));
+	    	} else {
+				dcl_make(dcl_geom,i+1);
+	    	}
+		}
+	}
 }
 
